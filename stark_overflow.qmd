@@ -1,0 +1,208 @@
+---
+title: "STACK OVERFLOW PROJECT"
+author: "OLAOLUWA GBOTOSO"
+format: dashboard
+theme: lux
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# Load the required library
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, bslib, bsicons, htmltools, 
+               reactable)
+```
+
+
+
+```{r}
+# Load the data
+
+crosswalk <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/qname_levels_single_response_crosswalk.csv')
+questions <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/stackoverflow_survey_questions.csv')
+my_data <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/stackoverflow_survey_single_response.csv')
+
+```
+
+
+
+```{r}
+my_data_head <- my_data %>% 
+  left_join((crosswalk %>% filter(qname == "age") %>% select(level, label)), by = c("age" = "level")) %>% select(age, label) %>% rename(age_label = label) %>% head()
+```
+
+
+```{r}
+# Merge labels in crosswalk with integer code of categorical variables in my_data
+categorical_columns <- crosswalk %>% 
+                        select(qname) %>% 
+                        distinct() %>% 
+                        pull()
+
+updated_data <- my_data
+
+for (col in categorical_columns) {
+    
+    updated_data <- updated_data %>% 
+    left_join((crosswalk %>% filter(qname == col)), by = setNames("level", col)) %>% 
+    rename(!!paste0(col, "_label") := label) %>% 
+    select(-all_of(col), - qname) 
+    
+}
+# Removing _label from the categorical columns
+updated_data <- updated_data %>%
+  rename_with(~ sub("_label$", "", .), ends_with("_label"))
+
+```
+
+
+
+```{r}
+write_csv(updated_data, "stark_overflow_clean.csv")
+```
+
+```{r}
+stack_overflow <- updated_data
+stack_overflow_dim <- dim(stack_overflow)
+stack_overflow_cols <- names(stack_overflow)
+
+stack_overflow_nas <- sapply(stack_overflow, function(x) sum(is.na(x)))
+# str(stack_overflow)
+
+# Convert the categorical variables from character to factors
+
+stack_overflow <- stack_overflow %>%
+  mutate(across(all_of(categorical_columns), as.factor))
+
+#str(stack_overflow)
+    
+
+
+```
+
+
+```{r}
+# Age distribution of respondents using a histogram
+#head(stack_overflow$age)
+# class(stack_overflow$age)
+
+levels(stack_overflow$age) <- c("Under 18 years old", "18-24 years old", "25-34 years old",    "35-44 years old",   "45-54 years old", "55-64 years old",  "65 years or older", "Prefer not to say")
+
+
+
+age_bar_plot <- stack_overflow %>% 
+  ggplot(aes(x = age, fill = age)) +
+  geom_bar() +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Bar Plot of Age Categories",
+       x = "Age Categories in Years",
+       y = "Frequency")
+```
+
+
+```{r}
+# Years of professional coding
+years_code_pro_nas <- sum(is.na(stack_overflow$years_code_pro))
+
+
+years_of_pro_coding_plot <- stack_overflow %>% 
+  ggplot(aes(x = years_code_pro)) +
+  geom_histogram(bins = 50, fill = "blue") +
+  labs(title = "Histogram of Professional Coding Experience",
+     x = "Years of Professional Coding Experience",
+     y = "Frequency") +
+  theme_minimal()
+```
+
+
+```{r}
+# Boxplot of Converted Yearly Compensation Across Top 5 Countries with Most Respondents
+
+selected_countries <- stack_overflow %>%
+                        filter(!is.na(country)) %>%
+                        group_by(country) %>%
+                        summarise(num_respondents = n(), .groups = 'drop') %>%
+                        arrange(desc(num_respondents)) %>%
+                        head(5) %>% 
+                        pull(country)
+
+
+yearly_conv_comp_top5_boxplot <- stack_overflow %>% 
+  filter(country %in% selected_countries) %>% 
+  ggplot(aes(x = country,  y = converted_comp_yearly, fill = country)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(title = str_wrap("Boxplot of Converted Yearly Compensation in Top 5 Countries with Most Respondents", width = 50),
+     x = "Country",
+     y = "Converted Yearly Compensation") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 20)) + 
+  theme(legend.position = "none",
+        plot.title = element_text(
+                      size = 14,              
+                      hjust = 0.5,              
+                      lineheight = 0.8)) 
+```
+
+
+```{r}
+# Boxplot of Converted Yearly Compensation with age categories
+
+yearly_conv_comp_age_boxplot <- stack_overflow %>% 
+  filter(!age == "Prefer not to say") %>% 
+  ggplot(aes(x = age,  y = converted_comp_yearly, fill = age)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(title = str_wrap("Boxplot of Converted Yearly Compensation Across Age Categories", width = 50),
+     x = "Age Categories",
+     y = "Converted Yearly Compensation") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
+  theme(legend.position = "none",
+        plot.title = element_text(
+                      size = 14,              
+                      hjust = 0.5,              
+                      lineheight = 0.8)) 
+
+```
+
+
+
+# Home
+
+## Row 1 {height=50%}
+
+### Column 1 {width=50%}
+
+```{r title = "Distribution of Age Categories"}
+age_bar_plot
+```
+
+
+### Column 2 {width=50%}
+
+```{r title = "Distribution of Years in Professional Coding"}
+years_of_pro_coding_plot
+```
+
+
+## Row 2 {height=50%}
+
+### Column 1 {width=50%}
+
+```{r title = "Yearly Compensation Distribution in Top 5 Countries by Respondents"}
+yearly_conv_comp_top5_boxplot
+```
+
+
+### Column 2 {width=50%}
+
+```{r title = "Yearly Compensation Distribution Across Age Groups"}
+yearly_conv_comp_age_boxplot 
+```
+
+
+
