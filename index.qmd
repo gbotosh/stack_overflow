@@ -12,6 +12,7 @@ editor_options:
 if(!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, bslib, bsicons, htmltools, 
                reactable)
+options(scipen=999)
 ```
 
 
